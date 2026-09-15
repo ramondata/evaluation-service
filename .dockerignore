@@ -1,0 +1,7 @@
+.exe
+.git
+.env
+.env.*
+coverage.out
+*.log
+docker-compose*
