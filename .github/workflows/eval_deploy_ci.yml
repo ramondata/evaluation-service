@@ -11,24 +11,41 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
+  dependency-lock:
+    name: Check Go dependency lock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify go.mod and go.sum
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
   ci:
     name: Evaluation Service CI
+    needs: dependency-lock
 
-    uses: ramondata/CI-reusable-source/.github/workflows/ci-reusable.yml@v1.6.0
+    uses: ramondata/CI-reusable-source/.github/workflows/ci-reusable.yml@fdc93fd8580222d757b9d941eef28643ef3be0f7
 
     permissions:
       contents: read
-      id-token: write
+
+    secrets:
+      AWS_ACADEMY_CREDENTIALS: ${{ secrets.AWS_ACADEMY_CREDENTIALS }}
 
     with:
-      aws-region: ${{ vars.AWS_REGION }}
-      aws-role-arn: ${{ vars.AWS_ROLE_ARN }}
-      ecr-repository: ${{ vars.ECR_REPOSITORY }}
+      aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      aws-auth-mode: academy
+      ecr-repository: ${{ vars.ECR_REPOSITORY || 'toggle-master/evaluation-service' }}
       image-name: "evaluation-service"
-      app-version: ${{ vars.APP_VERSION }}
+      app-version: ${{ vars.APP_VERSION || 'v1.0.0' }}
 
 
   gitops-update:
@@ -38,7 +55,7 @@ jobs:
       - ci
 
     if: >
-      github.event_name == 'push' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/aws-cloud-k8s'
 
     runs-on: ubuntu-latest
@@ -51,15 +68,22 @@ jobs:
           ref: master
           ssh-key: ${{ secrets.GITOPS_DEPLOY_KEY }}
           path: gitops
+          fetch-depth: 0
 
-      - name: Update evaluation-service image tag
+      - name: Update evaluation-service image repository and tag
         env:
           IMAGE_TAG: ${{ needs.ci.outputs.image-tag }}
+          IMAGE_URI: ${{ needs.ci.outputs.image-uri }}
         run: |
           cd gitops
 
+          : "${IMAGE_URI:?CI did not return the published ECR image URI}"
+          : "${IMAGE_TAG:?CI did not return the published image tag}"
+          IMAGE_REPOSITORY="${IMAGE_URI%:*}"
+
           sed -i -E \
-            "s|^  tag:.*|  tag: ${IMAGE_TAG}|" \
+            -e "s|^  repository:.*|  repository: ${IMAGE_REPOSITORY}|" \
+            -e "s|^  tag:.*|  tag: ${IMAGE_TAG}|" \
             apps/evaluation-service/values.yaml
 
           echo "New image tag:"
@@ -82,4 +106,13 @@ jobs:
           fi
 
           git commit -m "chore(evaluation-service): deploy ${IMAGE_TAG}"
-          git push origin master
+          for attempt in 1 2 3; do
+            git pull --rebase origin master
+            if git push origin HEAD:master; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Could not update GitOps after three push attempts."
+              exit 1
+            fi
+          done

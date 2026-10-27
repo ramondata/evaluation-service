@@ -127,188 +127,43 @@ Após realizar as chamadas acima, acesse a fila SQS configurada e verifique o re
 
 ---
 
-# 🔄 CI/CD e DevSecOps
+## CI/CD no AWS Academy
 
-Para a Fase 3 do Tech Challenge, o `evaluation-service` foi integrado a uma pipeline de CI utilizando **GitHub Actions**, com uma reusable workflow compartilhada pelo projeto.
+O pipeline da branch produtiva `aws-cloud-k8s` autentica com o repository secret
+`AWS_ACADEMY_CREDENTIALS`. Cole o bloco de **AWS Details → AWS CLI**, com
+`aws_access_key_id`, `aws_secret_access_key` e `aws_session_token`.
+O cabeçalho `[default]` é opcional. O secret é configurado neste repositório;
+o secret do auth-service não é compartilhado automaticamente.
 
-A pipeline é acionada em Pull Requests, execução manual (`workflow_dispatch`) e pushes na branch `aws-cloud-k8s`.
+O workflow usa `ramondata/CI-reusable-source`, fixado por SHA, no modo Academy.
+As credenciais são validadas e mascaradas, sem assumir uma role via OIDC.
+O código-fonte e a imagem passam pelas verificações antes da publicação no ECR.
+Pull requests executam somente as verificações, sem autenticar na AWS.
 
-O fluxo implementado contempla:
-
-- Build da aplicação;
-- Execução dos testes;
-- Lint e validação de formatação;
-- SCA (Software Composition Analysis) com Trivy;
-- SAST (Static Application Security Testing) com Gosec;
-- Security Gate;
-- Build da imagem Docker;
-- Scan da imagem Docker com Trivy;
-- Autenticação na AWS utilizando GitHub Actions OIDC;
-- Login no Amazon ECR;
-- Push da imagem aprovada para o ECR.
-
-A reusable workflow utilizada é:
-
-```text
-ramondata/CI-reusable-source/.github/workflows/ci-reusable.yml@v1.5.0
-```
-
-## ⚙️ Variáveis da pipeline
-
-A pipeline utiliza Repository Variables configuradas no GitHub.
-
-| Variável | Descrição |
+| Variável opcional | Valor padrão |
 | --- | --- |
-| `AWS_REGION` | Região AWS utilizada pelo projeto |
-| `AWS_ROLE_ARN` | ARN da IAM Role assumida pelo GitHub Actions |
-| `ECR_REPOSITORY` | Repositório ECR de destino |
-| `APP_VERSION` | Versão utilizada na geração da tag da imagem |
+| `AWS_REGION` | `us-east-1` |
+| `ECR_REPOSITORY` | `toggle-master/evaluation-service` |
+| `APP_VERSION` | `v1.0.0` |
 
-Para o Evaluation Service:
+O ECR deve existir na conta e região do laboratório. A tag publicada segue
+`APP_VERSION-SHA_CURTO`, por exemplo `v1.0.0-abcdef1`.
 
-```text
-ECR_REPOSITORY=toggle-master/evaluation-service
-```
+A cada reinício do laboratório, substitua o bloco inteiro do secret e use
+**Re-run all jobs** numa execução por push que já contenha esta alteração.
+Alterar o secret não dispara o pipeline. O botão **Run workflow** depende de
+este arquivo também existir na branch padrão do repositório.
 
-A imagem publicada no ECR recebe uma tag formada pela versão da aplicação e pelo SHA reduzido do commit.
+### GitOps automático
 
-Exemplo:
+Após a publicação da imagem, o pipeline atualiza automaticamente o repositório
+existente `ramondata/toggle-master-gitops`. Configure `GITOPS_DEPLOY_KEY` neste
+repositório com uma chave privada autorizada a escrever no GitOps.
+Os pushes fazem rebase e até três tentativas para acomodar atualizações de
+outros serviços na mesma branch sem usar force push.
+O job atualiza repositório e tag em `apps/evaluation-service/values.yaml`, na
+`master`. A configuração de ArgoCD e do cluster é uma etapa separada.
 
-```text
-v1.0.0-abcdef1
-```
-
-Nenhuma Access Key ou Secret Access Key da AWS precisa ser armazenada no repositório. A autenticação é realizada através de **OIDC**.
-
-## 🐳 Docker
-
-O serviço utiliza **multi-stage build**.
-
-No primeiro estágio, uma imagem Go é utilizada para compilar a aplicação. No segundo, é utilizada uma imagem Alpine contendo somente os componentes necessários para executar o binário.
-
-A configuração atual utiliza:
-
-```text
-Builder: golang:1.25.7-alpine
-Runtime: alpine:3.22
-```
-
-O build do binário é realizado com:
-
-```text
-CGO_ENABLED=0
-GOOS=linux
-```
-
-Essa abordagem reduz os componentes presentes na imagem final e, consequentemente, sua superfície de ataque.
-
-## 🔐 Autenticação GitHub Actions → AWS
-
-A integração entre GitHub Actions e AWS utiliza **OpenID Connect (OIDC)**.
-
-O workflow assume uma IAM Role específica para o serviço:
-
-```text
-evaluation-service-github-ecr
-```
-
-A role possui as permissões necessárias para publicação da imagem no repositório:
-
-```text
-toggle-master/evaluation-service
-```
-
-A Trust Policy da role restringe a identidade autorizada a assumir a role ao repositório e branch utilizados pela pipeline.
-
-## 🛡️ Validações de segurança
-
-A pipeline possui verificações de segurança antes da publicação da imagem.
-
-### SAST
-
-O **Gosec** realiza análise estática do código Go.
-
-Problemas encontrados nessa etapa precisam ser corrigidos antes que o código continue pelo Security Gate.
-
-### SCA
-
-O **Trivy** analisa as dependências do projeto em busca de vulnerabilidades conhecidas.
-
-### Docker Image Scan
-
-Após a criação da imagem Docker, o Trivy executa uma nova análise sobre a imagem.
-
-Vulnerabilidades críticas bloqueiam a continuidade da pipeline e impedem que uma imagem vulnerável seja publicada no ECR.
-
-## 🚧 Problemas encontrados e soluções
-
-Durante a implementação da pipeline foram encontrados alguns problemas importantes.
-
-### Falha nas validações do Gosec
-
-Nas primeiras execuções, o Gosec identificou problemas no código Go.
-
-Foram realizados ajustes no código para atender às validações de segurança antes de prosseguir para as etapas seguintes.
-
-Esse comportamento também permitiu validar o funcionamento do Security Gate, garantindo que problemas bloqueantes interrompam a pipeline.
-
-### Vulnerabilidades críticas na imagem Docker
-
-O scan da imagem Docker com Trivy identificou vulnerabilidades críticas relacionadas às imagens base utilizadas inicialmente.
-
-O Dockerfile foi atualizado para versões mais recentes de Go e Alpine:
-
-```text
-golang:1.25.7-alpine
-alpine:3.22
-```
-
-Após a atualização, o scan da imagem deixou de bloquear a pipeline por essas vulnerabilidades.
-
-### Falha na autenticação OIDC
-
-Durante a autenticação com a AWS, a pipeline apresentou o erro:
-
-```text
-Not authorized to perform sts:AssumeRoleWithWebIdentity
-```
-
-A causa estava na Trust Policy da IAM Role: a condição `sub` não correspondia à identidade enviada pelo repositório atual.
-
-A Trust Policy foi atualizada para utilizar a identidade correta do repositório e da branch que executam a pipeline.
-
-Após a correção, o GitHub Actions conseguiu assumir a IAM Role e prosseguir para a autenticação no Amazon ECR.
-
-## ✅ Resultado
-
-Após os ajustes, o fluxo de CI do `evaluation-service` passou a executar:
-
-```text
-Código
-  ↓
-Build e testes
-  ↓
-Lint
-  ↓
-SCA - Trivy
-  ↓
-SAST - Gosec
-  ↓
-Security Gate
-  ↓
-Docker Build
-  ↓
-Trivy Image Scan
-  ↓
-AWS OIDC
-  ↓
-Amazon ECR
-```
-
-Somente após a aprovação das validações da pipeline a imagem é publicada no repositório:
-
-```text
-toggle-master/evaluation-service
-```
-
-A publicação no ECR conclui a etapa de **CI e geração do artefato** deste serviço.
+A verificação de lock exige que `go.mod` e `go.sum` estejam sincronizados.
+O workflow duplicado `first-ci-evaluation.yml` foi removido para evitar duas
+publicações e tentativas de autenticação diferentes no mesmo push.
