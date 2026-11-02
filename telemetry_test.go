@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -26,7 +25,7 @@ func TestHTTPPropagatesTraceAcrossServiceBoundary(t *testing.T) {
 	var downstream trace.TraceID
 	server := httptest.NewServer(otelhttp.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		downstream = trace.SpanContextFromContext(r.Context()).TraceID()
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 	}), "flag"))
 	defer server.Close()
 	request, err := http.NewRequestWithContext(c, http.MethodGet, server.URL, nil)
@@ -63,5 +62,4 @@ func TestDemoFailureRequiresTokenAndCanBeReversed(t *testing.T) {
 			t.Fatalf("unexpected failure control state: %d", w.Code)
 		}
 	}
-	os.Unsetenv("DEMO_ENABLED")
 }
