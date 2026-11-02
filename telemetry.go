@@ -21,6 +21,7 @@ import (
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/trace"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
@@ -77,6 +78,7 @@ func observeHTTP(next http.Handler) http.Handler {
 	}
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sw := &statusWriter{ResponseWriter: w, status: 200}
+		w.Header().Set("X-Trace-ID", trace.SpanContextFromContext(r.Context()).TraceID().String())
 		next.ServeHTTP(sw, r)
 		counter.Add(r.Context(), 1, metric.WithAttributes(
 			attribute.String("http_method", r.Method), attribute.Int("status_code", sw.status)))
