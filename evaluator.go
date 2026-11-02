@@ -1,7 +1,7 @@
 package main
 
 import (
- "context"
+	"context"
 	"crypto/sha1"
 	"encoding/binary"
 	"encoding/json"
@@ -89,7 +89,7 @@ func (a *App) getCombinedFlagInfo(ctx context.Context, flagName string) (*Combin
 
 // fetchFromServices busca dados do flag-service e targeting-service concorrentemente
 func (a *App) fetchFromServices(
- ctx context.Context,
+	ctx context.Context,
 	flagName string,
 ) (*CombinedFlagInfo, error) {
 	var wg sync.WaitGroup
@@ -189,7 +189,7 @@ func (a *App) fetchFlag(ctx context.Context, flagName string) (*Flag, error) {
 
 	// #nosec G704 -- requestURL usa host configurado internamente e flagName validado.
 	req, err := http.NewRequestWithContext(
- ctx,
+		ctx,
 		http.MethodGet,
 		requestURL,
 		nil,
@@ -273,7 +273,7 @@ func (a *App) fetchRule(ctx context.Context, flagName string) (*TargetingRule, e
 
 	// #nosec G704 -- requestURL usa host configurado internamente e flagName validado.
 	req, err := http.NewRequestWithContext(
- ctx,
+		ctx,
 		http.MethodGet,
 		requestURL,
 		nil,
@@ -401,4 +401,3 @@ func getDeterministicBucket(input string) int {
 	// Retorna o módulo 100
 	return int(val % 100)
 }
-

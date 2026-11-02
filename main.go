@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
- "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Contexto global para o Redis
@@ -30,7 +30,9 @@ type App struct {
 func main() {
 	_ = godotenv.Load()
 	shutdown, err := initTelemetry("evaluation-service")
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer shutdown()
 
 	// --- Configuração ---
@@ -101,8 +103,8 @@ func main() {
 
 	// Cliente HTTP
 	httpClient := &http.Client{
-		Timeout: 5 * time.Second,
- Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Timeout:   5 * time.Second,
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
 
 	// Cria a instância da App
@@ -119,7 +121,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", app.healthHandler)
 	mux.HandleFunc("/evaluate", app.evaluationHandler)
- mux.HandleFunc("/demo/failure", demoFailureHandler)
+	mux.HandleFunc("/demo/failure", demoFailureHandler)
 
 	log.Printf("Serviço de Avaliação (Go) rodando na porta %s", port)
 
@@ -127,4 +129,3 @@ func main() {
 		log.Fatal(err)
 	}
 }
-

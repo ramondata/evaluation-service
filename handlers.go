@@ -1,8 +1,8 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
- "context"
 	"log"
 	"net/http"
 )
@@ -25,9 +25,12 @@ func (a *App) healthHandler(w http.ResponseWriter, r *http.Request) {
 func (a *App) evaluationHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	if demoFailure.Load() { http.Error(w, `{"error":"controlled demo failure"}`, http.StatusInternalServerError); return }
+	if demoFailure.Load() {
+		http.Error(w, `{"error":"controlled demo failure"}`, http.StatusInternalServerError)
+		return
+	}
 
- // 1. Parsear os query parameters
+	// 1. Parsear os query parameters
 	userID := r.URL.Query().Get("user_id")
 	flagName := r.URL.Query().Get("flag_name")
 
@@ -73,4 +76,3 @@ func (a *App) evaluationHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Erro ao codificar resposta da avaliação: %v", err)
 	}
 }
-
