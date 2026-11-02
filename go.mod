@@ -3,6 +3,16 @@ module evaluation-service
 go 1.26
 
 require (
+ go.opentelemetry.io/contrib/bridges/otelslog v0.21.0
+ go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
+ go.opentelemetry.io/otel v1.47.0
+ go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v1.47.0
+ go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.47.0
+ go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.47.0
+ go.opentelemetry.io/otel/sdk v1.47.0
+ go.opentelemetry.io/otel/sdk/log v1.47.0
+ go.opentelemetry.io/otel/sdk/metric v1.47.0
+
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.4
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.0
@@ -29,3 +39,4 @@ require (
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sys v0.17.0 // indirect
 )
+

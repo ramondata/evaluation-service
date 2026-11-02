@@ -1,0 +1,26 @@
+name: Prepare telemetry dependencies
+on:
+  push:
+    branches: [feat/fase4-telemetry]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+      - run: gofmt -w *.go
+      - run: go mod tidy
+      - run: go test -race ./...
+      - name: Export normalized source for review
+        if: always()
+        shell: python
+        run: |
+          import base64, json
+          from pathlib import Path
+          paths = list(Path('.').glob('*.go')) + [Path('go.mod'), Path('go.sum')]
+          data = {str(p): p.read_text() for p in paths if p.exists()}
+          print('NORMALIZED_FILES=' + base64.b64encode(json.dumps(data).encode()).decode())
