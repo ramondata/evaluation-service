@@ -96,7 +96,11 @@ func main() {
 			log.Fatalf("Não foi possível criar configuração AWS: %v", err)
 		}
 
-		sqsSvc = sqs.NewFromConfig(cfg)
+		sqsSvc = sqs.NewFromConfig(cfg, func(options *sqs.Options) {
+			if endpoint := os.Getenv("AWS_ENDPOINT_URL"); endpoint != "" {
+				options.BaseEndpoint = &endpoint
+			}
+		})
 
 		log.Println("Cliente SQS inicializado com sucesso.")
 	}
